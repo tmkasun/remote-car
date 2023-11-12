@@ -1,0 +1,2 @@
+/home/kasun/projects/esp32/carpy/build/CMakeFiles/edit_cache.dir
+/home/kasun/projects/esp32/carpy/build/CMakeFiles/rebuild_cache.dir

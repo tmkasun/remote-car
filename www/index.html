@@ -1,0 +1,33 @@
+<html lang="en">
+    <head>
+        <title>Websocket Client</title>
+        <link rel="stylesheet" href="styles.css" />
+    </head>
+    <body>
+        <p>CPU temperature: <strong>-</strong>&deg;C</p>
+        <p>NeoPixel Color: <input type="color"></p>
+        <script>
+            const cpuTemp = document.querySelector('strong');
+            const colorPicker = document.querySelector('input[type="color"]');
+
+            let ws = new WebSocket('ws://' + location.host + '/connect-websocket');
+
+            ws.onopen = () => console.log('WebSocket connection opened');
+            ws.onclose = () => console.log('WebSocket connection closed');
+            ws.onmessage = event => cpuTemp.textContent = event.data;
+            ws.onerror = error => cpuTemp.textContent = error;
+
+            colorPicker.oninput = debounce(() => ws.send(colorPicker.value), 200);
+
+            function debounce(callback, delay = 1000) {
+                let timeout
+                return (...args) => {
+                    clearTimeout(timeout)
+                    timeout = setTimeout(() => {
+                    callback(...args)
+                  }, delay)
+                }
+            }
+        </script>
+    </body>
+</html>
