@@ -6,9 +6,8 @@ echo "Uploading main.py . . ."
 ampy --port /dev/ttyUSB0 put ../main.py
 echo "main.py uploaded!"
 
-rshell --port /dev/ttyUSB0 repl
+# rshell --port /dev/ttyUSB0 repl
 
-exit 0
 
 echo "Removing www . . ."
 ampy --port /dev/ttyUSB0 rmdir www

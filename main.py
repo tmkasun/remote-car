@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Unlicense
 
-#NodeMCU ESP32 https://joy-it.net/files/files/Produkte/SBC-NodeMCU-ESP32/SBC-NodeMCU-ESP32-Manual-2021-06-29.pdf
+# NodeMCU ESP32 https://joy-it.net/files/files/Produkte/SBC-NodeMCU-ESP32/SBC-NodeMCU-ESP32-Manual-2021-06-29.pdf
 # https://joy-it.net/en/products/SBC-NodeMCU-ESP32
 
 from asyncio import create_task, gather, run, sleep as async_sleep
@@ -13,10 +13,32 @@ import gc
 import socketpool
 import wifi
 import pwmio
+import ipaddress
+import json
 from adafruit_motor import motor
 
 from adafruit_httpserver import Server, Request, MIMETypes, Websocket, GET, FileResponse
 
+AP_SSID = "GamikaCar"
+AP_PASSWORD = "kasun1234"
+
+print("Creating access point...")
+wifi.radio.start_ap(ssid=AP_SSID, password=AP_PASSWORD)
+
+print(f"Created access point {AP_SSID}")
+
+
+def getConfigs():
+    with open("konfig.json", "a") as f:
+        configJson = json.load(f)
+        print(configJson)
+        if "wifiMode" not in configJson:
+            configJson.wifiMode = "ap"
+            f.write(json.dumps(configJson))
+        return configJson
+
+
+# getConfigs()
 
 pwm_a = pwmio.PWMOut(board.D4, frequency=50)
 pwm_b = pwmio.PWMOut(board.D2, frequency=50)
@@ -37,7 +59,7 @@ MIMETypes.configure(
 )
 
 pool = socketpool.SocketPool(wifi.radio)
-server = Server(pool,root_path='/www', debug=True)
+server = Server(pool, root_path="/www", debug=True)
 
 
 # led = digitalio.DigitalInOut(board.LED)
@@ -47,11 +69,14 @@ websocket: Websocket = None
 
 # https://docs.circuitpython.org/projects/httpserver/en/latest/api.html#adafruit_httpserver.response.FileResponse
 
+
 @server.route("/client", GET)
 def client(request: Request):
     # https://docs.circuitpython.org/projects/httpserver/en/latest/api.html#adafruit_httpserver.request.Request
     print(request.path)
-    return FileResponse(request, filename='index.html',root_path='/www', content_type="text/html")
+    return FileResponse(
+        request, filename="index.html", root_path="/www", content_type="text/html"
+    )
 
 
 @server.route("/connect-websocket", GET)
@@ -66,7 +91,7 @@ def connect_client(request: Request):
     return websocket
 
 
-server.start(str(wifi.radio.ipv4_address))
+server.start(str(wifi.radio.ipv4_address_ap))
 
 
 async def handle_http_requests():
@@ -79,13 +104,14 @@ async def handle_websocket_requests():
     while True:
         if websocket is not None:
             if (data := websocket.receive(fail_silently=True)) is not None:
-                params = data.split('#')
+                params = data.split("#")
                 print(data)
                 driveWheelSpeed = float(params[0])
                 frontSteerSpeed = float(params[1])
                 if driveWheelSpeed or driveWheelSpeed == 0:
-                    driveWheel.throttle = driveWheelSpeed
-                
+                    if driveWheelSpeed >= -1 and driveWheelSpeed <= 1:
+                        driveWheel.throttle = driveWheelSpeed
+
                 if frontSteerSpeed or frontSteerSpeed == 0:
                     frontSteer.throttle = frontSteerSpeed
                 websocket.send_message("Ack " + data, fail_silently=True)
@@ -100,7 +126,7 @@ async def send_websocket_messages():
             # https://learn.adafruit.com/Memory-saving-tips-for-CircuitPython?view=all
             gc.collect()
             start_mem = gc.mem_free()
-            print( "Point 1 Available memory: {} bytes".format(start_mem) )
+            print("Point 1 Available memory: {} bytes".format(start_mem))
             websocket.send_message("Keep-Alive", fail_silently=True)
         await async_sleep(15)
 
