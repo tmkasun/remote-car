@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import logo from "./logo.svg";
 import "./App.css";
 import Footer from "./Components/Footer";
+import { Configs } from "./Components/Configs";
 
 const arrowButtonClass =
   "text-blue-700 hover:text-white border border-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:border-blue-500 dark:text-blue-500 dark:hover:text-white dark:hover:bg-blue-500 dark:focus:ring-blue-800";
@@ -33,22 +34,36 @@ function App() {
   const [wsMessage, setWSMessage] = useState("Connecting . . .");
   const wsRef = useRef<WebSocket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const isMobileOrTablet = useMemo(mobileAndTabletCheck, []);
-  useEffect(() => {
+  const connectWS = () => {
+    if (wsRef.current) {
+      wsRef.current.close();
+    }
+    setIsConnecting(true);
     let ws = new WebSocket("ws://" + WSEndpoint + "/connect-websocket");
     ws.onopen = () => {
       setWSMessage("Connected to WS Server");
       setIsConnected(true);
+      setIsConnecting(false);
     };
     ws.onclose = () => {
       setWSMessage("Disconnect from WS Server");
       setIsConnected(false);
+      setIsConnecting(false);
     };
     ws.onmessage = (event) => setWSMessage(event.data);
-    ws.onerror = (error) => setWSMessage(`${error}`);
+    ws.onerror = (error) => {
+      setWSMessage(`Error connecting to WS Server ${error}`);
+      setIsConnected(false);
+      setIsConnecting(false);
+    };
 
     wsRef.current = ws;
-    return () => ws.close();
+  };
+  useEffect(() => {
+    connectWS();
+    return () => wsRef?.current?.close();
   }, []);
 
   useEffect(() => {
@@ -106,30 +121,52 @@ function App() {
     wsRef.current?.send(`-2#${adjustedTurning}`); // -2 is for speed, Because we are not changing the speed
   };
   return (
-    <div className="flex-1 flex flex-col justify-start items-stretch mx-1">
+    <div className="flex-1 flex flex-col justify-start items-stretch mx-1 mt-2">
       <main className="flex flex-col flex-1  items-center">
-        <h3
-          className={`flex items-center justify-center  ${
+        <div
+          className={`flex w-full items-center justify-center  ${
             isConnected ? "text-teal-600" : "text-red-600"
           }`}
         >
-          <svg
-            className={`w-12 h-12 `}
-            aria-hidden="true"
-            xmlns="http://www.w3.org/2000/svg"
-            width="96"
-            height="96"
-            fill="currentColor"
-            viewBox="0 0 24 24"
+          <button
+            className={`text-white w-full flex flex-1 justify-center items-center gap-3  focus:ring-4 ${
+              isConnected
+                ? "focus:ring-green-300 bg-green-700 hover:bg-green-800"
+                : "focus:ring-blue-300 bg-blue-700 hover:bg-blue-800"
+            } font-medium rounded-lg text-sm px-5 py-2.5 me-2 mb-2focus:outline-none `}
+            onClick={() => {
+              if (isConnected) {
+                wsRef.current?.close();
+              } else {
+                connectWS();
+              }
+            }}
           >
-            <path
-              fill-rule="evenodd"
-              d="M7.05 4.05A7 7 0 0 1 19 9c0 2.407-1.197 3.874-2.186 5.084l-.04.048C15.77 15.362 15 16.34 15 18a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1c0-1.612-.77-2.613-1.78-3.875l-.045-.056C6.193 12.842 5 11.352 5 9a7 7 0 0 1 2.05-4.95ZM9 21a1 1 0 0 1 1-1h4a1 1 0 1 1 0 2h-4a1 1 0 0 1-1-1Zm1.586-13.414A2 2 0 0 1 12 7a1 1 0 1 0 0-2 4 4 0 0 0-4 4 1 1 0 0 0 2 0 2 2 0 0 1 .586-1.414Z"
-              clip-rule="evenodd"
-            />
-          </svg>
-          {isConnected ? "Connected" : "Disconnected"}
-        </h3>
+            {isConnecting
+              ? "Connecting ..."
+              : isConnected
+              ? "Connected"
+              : "Connect"}
+            {isConnected && (
+              <svg
+                className="w-6 h-6 text-teal-500  dark:text-white"
+                aria-hidden="true"
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  fill-rule="evenodd"
+                  d="M2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10S2 17.523 2 12Zm13.707-1.293a1 1 0 0 0-1.414-1.414L11 12.586l-1.793-1.793a1 1 0 0 0-1.414 1.414l2.5 2.5a1 1 0 0 0 1.414 0l4-4Z"
+                  clip-rule="evenodd"
+                />
+              </svg>
+            )}
+          </button>
+          <Configs />
+        </div>
         <div className="flex">
           <button
             className=""
