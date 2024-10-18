@@ -5,7 +5,7 @@
 # NodeMCU ESP32 https://joy-it.net/files/files/Produkte/SBC-NodeMCU-ESP32/SBC-NodeMCU-ESP32-Manual-2021-06-29.pdf
 # https://joy-it.net/en/products/SBC-NodeMCU-ESP32
 
-from asyncio import create_task, gather, run, sleep as async_sleep
+import asyncio
 import board
 import digitalio
 import microcontroller
@@ -16,6 +16,7 @@ import pwmio
 import ipaddress
 import json
 from adafruit_motor import motor
+import countio
 
 from adafruit_httpserver import Server, Request, MIMETypes, Websocket, GET, FileResponse
 
@@ -97,7 +98,7 @@ server.start(str(wifi.radio.ipv4_address_ap))
 async def handle_http_requests():
     while True:
         server.poll()
-        await async_sleep(0)
+        await asyncio.sleep(0)
 
 
 async def handle_websocket_requests():
@@ -116,7 +117,7 @@ async def handle_websocket_requests():
                     frontSteer.throttle = frontSteerSpeed
                 websocket.send_message("Ack " + data, fail_silently=True)
 
-        await async_sleep(0)
+        await asyncio.sleep(0)
 
 
 async def send_websocket_messages():
@@ -128,15 +129,41 @@ async def send_websocket_messages():
             start_mem = gc.mem_free()
             print("Point 1 Available memory: {} bytes".format(start_mem))
             websocket.send_message("Keep-Alive", fail_silently=True)
-        await async_sleep(15)
+        await asyncio.sleep(15)
 
+async def catch_acceleration():
+    hasAccelerated = False
+    with countio.Counter(board.D19) as interrupt:
+        while True:
+            if interrupt.count > 0:
+                interrupt.count = 0
+                if hasAccelerated:
+                    print("Stopped")
+                    hasAccelerated = False
+                    driveWheel.throttle = 0
+                    if websocket is not None:
+                        websocket.send_message("MOTOR#STOPPED", fail_silently=True)
+            else:
+                print("Running")
+                hasAccelerated = True
+                driveWheel.throttle = 1
+                if websocket is not None:
+                    websocket.send_message("MOTOR#RUNNING", fail_silently=True)
+            await asyncio.sleep(0.1)
+
+class SharedContext:
+    # https://learn.adafruit.com/cooperative-multitasking-in-circuitpython-with-asyncio/communicating-between-tasks
+    def __init__(self):
+        self.direction = 0
 
 async def main():
-    await gather(
-        create_task(handle_http_requests()),
-        create_task(handle_websocket_requests()),
-        create_task(send_websocket_messages()),
+    context = SharedContext()
+    await asyncio.gather(
+        asyncio.create_task(handle_http_requests()),
+        asyncio.create_task(handle_websocket_requests()),
+        asyncio.create_task(send_websocket_messages()),
+        asyncio.create_task(catch_acceleration()),
     )
 
 
-run(main())
+asyncio.run(main())
