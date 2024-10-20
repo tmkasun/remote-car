@@ -15,10 +15,20 @@ import wifi
 import pwmio
 import ipaddress
 import json
+import time
 from adafruit_motor import motor
 import countio
 
 from adafruit_httpserver import Server, Request, MIMETypes, Websocket, GET, FileResponse
+
+isDebug = False
+
+# async def main():
+#     pass
+
+
+# asyncio.run(main())
+# assert False
 
 AP_SSID = "GamikaCar"
 AP_PASSWORD = "kasun1234"
@@ -131,6 +141,8 @@ async def send_websocket_messages():
             websocket.send_message("Keep-Alive", fail_silently=True)
         await asyncio.sleep(15)
 
+
+# Deprecated use only for testing and as a reference to using interrupts
 async def catch_acceleration():
     hasAccelerated = False
     with countio.Counter(board.D19) as interrupt:
@@ -151,18 +163,72 @@ async def catch_acceleration():
                     websocket.send_message("MOTOR#RUNNING", fail_silently=True)
             await asyncio.sleep(0.1)
 
+
 class SharedContext:
     # https://learn.adafruit.com/cooperative-multitasking-in-circuitpython-with-asyncio/communicating-between-tasks
     def __init__(self):
         self.direction = 0
 
+
+async def monitor_inputs(pins):
+    [reverse, speed1, speed2, accelerator] = pins
+    hasAccelerated = False
+    while True:
+        if isDebug:
+            print("Timestamp: ", time.time())
+        isReverse = reverse.value
+        isSpeed1 = speed1.value
+        isSpeed2 = speed2.value
+        isAccelerator = accelerator.value
+        if isDebug:
+            print("Reverse: ", isReverse)
+            print("Speed1: ", isSpeed1)
+            print("Speed2: ", isSpeed2)
+            print("Accelerator: ", isAccelerator)
+        if isAccelerator:
+            hasAccelerated = True
+            revFactor = -1 if isReverse else 1
+            acceleratorFactor = 0.7 if isSpeed1 else 1 if isSpeed2 else 0
+            if isDebug:
+                print("Accelerator Factor: ", acceleratorFactor)
+                print("Reverse Factor: ", revFactor)
+            driveWheel.throttle = acceleratorFactor * revFactor
+            if websocket is not None:
+                websocket.send_message(
+                    "MOTOR#RUNNING" + str(acceleratorFactor * revFactor),
+                    fail_silently=True,
+                )
+        elif hasAccelerated:
+            if isDebug:
+                print("Stopped")
+            hasAccelerated = False
+            driveWheel.throttle = 0
+            if websocket is not None:
+                websocket.send_message("MOTOR#STOPPED", fail_silently=True)
+        await asyncio.sleep(0.05)
+
+
 async def main():
     context = SharedContext()
+    reverse = digitalio.DigitalInOut(board.D27)
+    reverse.direction = digitalio.Direction.INPUT
+    reverse.pull = digitalio.Pull.DOWN
+    speed1 = digitalio.DigitalInOut(board.D26)
+    speed1.direction = digitalio.Direction.INPUT
+    speed1.pull = digitalio.Pull.DOWN
+    speed2 = digitalio.DigitalInOut(board.D25)
+    speed2.direction = digitalio.Direction.INPUT
+    speed2.pull = digitalio.Pull.DOWN
+    accelerator = digitalio.DigitalInOut(board.D19)
+    accelerator.direction = digitalio.Direction.INPUT
+    accelerator.pull = digitalio.Pull.DOWN
+
     await asyncio.gather(
         asyncio.create_task(handle_http_requests()),
         asyncio.create_task(handle_websocket_requests()),
         asyncio.create_task(send_websocket_messages()),
-        asyncio.create_task(catch_acceleration()),
+        # asyncio.create_task(catch_acceleration()),
+        asyncio.create_task(monitor_inputs([reverse, speed1, speed2, accelerator])),
     )
 
 
