@@ -3,11 +3,9 @@ import logo from "./logo.svg";
 import "./App.css";
 import Footer from "./Components/Footer";
 import { Configs } from "./Components/Configs";
+import { Controllers } from "./Components/Controllers";
+import { CommandsProvider } from "./Components/CommandContext";
 
-const arrowButtonClass =
-  "text-blue-700 hover:text-white border border-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:border-blue-500 dark:text-blue-500 dark:hover:text-white dark:hover:bg-blue-500 dark:focus:ring-blue-800";
-
-const arrowSVGSize = "w-16 h-16";
 const WSEndpoint = "192.168.4.1" || window.location.host;
 const mobileAndTabletCheck = function () {
   let check = false;
@@ -24,11 +22,9 @@ const mobileAndTabletCheck = function () {
   })(navigator.userAgent || navigator.vendor || (window as any).opera);
   return check;
 };
-const MAX_TURNING_TIME = 1000;
 
 function App() {
   const [isForward, setIsForward] = useState(false);
-  const turningTimeOut = useRef<NodeJS.Timeout | null>(null);
   const [speed, setSpeed] = useState(0);
   const [turning, setTurning] = useState(0);
   const [wsMessage, setWSMessage] = useState("Connecting . . .");
@@ -93,7 +89,6 @@ function App() {
       document.removeEventListener("keyup", handleKeyUp);
     };
   }, []);
-
   const handleSpeed = (
     currentSpeed: number,
     nextIsBackward: boolean | null = null
@@ -225,218 +220,19 @@ function App() {
             </svg>
           </button>
         </div>
-        <div className="gap-10 flex flex-col w-full justify-center items-center">
-          <button
-            type="button"
-            onTouchStart={(e) => {
-              // Forward
-              handleSpeed(1, true);
-            }}
-            onTouchEnd={(e) => {
-              handleSpeed(0);
-            }}
-            onMouseDown={(e) => {
-              if (isMobileOrTablet) {
-                return;
-              }
-              e.preventDefault();
-              e.stopPropagation();
-              handleSpeed(1, true);
-            }}
-            onMouseUp={(e) => {
-              if (isMobileOrTablet) {
-                return;
-              }
-              e.preventDefault();
-              e.stopPropagation();
-              handleSpeed(0);
-            }}
-            className={arrowButtonClass}
-          >
-            {/* Forward */}
-            <svg
-              className={`${arrowSVGSize} text-gray-800`}
-              aria-hidden="true"
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M12 6v13m0-13 4 4m-4-4-4 4"
-              />
-            </svg>
-          </button>
-          <div className="flex justify-between w-full">
-            <button
-              type="button"
-              onTouchStart={() => {
-                handleTurn(1);
-                if (turningTimeOut.current) {
-                  clearTimeout(turningTimeOut.current);
-                }
-                turningTimeOut.current = setTimeout(() => {
-                  handleTurn(0);
-                }, MAX_TURNING_TIME);
-              }}
-              onTouchEnd={() => {
-                handleTurn(0);
-              }}
-              onMouseDown={() => {
-                if (isMobileOrTablet) {
-                  return;
-                }
-                handleTurn(1);
-              }}
-              onMouseUp={() => {
-                if (isMobileOrTablet) {
-                  return;
-                }
-                handleTurn(0);
-              }}
-              className={arrowButtonClass}
-            >
-              <svg
-                className={`${arrowSVGSize} text-gray-800`}
-                aria-hidden="true"
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M5 12h14M5 12l4-4m-4 4 4 4"
-                />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                handleSpeed(0);
-              }}
-              className="text-red-700 hover:text-white border border-red-700 hover:bg-red-800 focus:ring-4 focus:outline-none focus:ring-red-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:border-red-500 dark:text-red-500 dark:hover:text-white dark:hover:bg-red-600 dark:focus:ring-red-900"
-            >
-              <svg
-                className={`${arrowSVGSize} text-red-800`}
-                aria-hidden="true"
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  fill-rule="evenodd"
-                  d="M2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10S2 17.523 2 12Zm7.707-3.707a1 1 0 0 0-1.414 1.414L10.586 12l-2.293 2.293a1 1 0 1 0 1.414 1.414L12 13.414l2.293 2.293a1 1 0 0 0 1.414-1.414L13.414 12l2.293-2.293a1 1 0 0 0-1.414-1.414L12 10.586 9.707 8.293Z"
-                  clip-rule="evenodd"
-                />
-              </svg>
-            </button>
-            <button
-              onTouchStart={() => {
-                handleTurn(-1);
-                if (turningTimeOut.current) {
-                  clearTimeout(turningTimeOut.current);
-                }
-                turningTimeOut.current = setTimeout(() => {
-                  handleTurn(0);
-                }, MAX_TURNING_TIME);
-              }}
-              onTouchEnd={() => {
-                handleTurn(0);
-              }}
-              onMouseDown={() => {
-                if (isMobileOrTablet) {
-                  return;
-                }
-                handleTurn(-1);
-              }}
-              onMouseUp={() => {
-                if (isMobileOrTablet) {
-                  return;
-                }
-                handleTurn(0);
-              }}
-              type="button"
-              className={arrowButtonClass}
-            >
-              <svg
-                className={`${arrowSVGSize} text-gray-800`}
-                aria-hidden="true"
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M19 12H5m14 0-4 4m4-4-4-4"
-                />
-              </svg>
-            </button>
-          </div>
-          <button
-            type="button"
-            onTouchStart={(e) => {
-              // backward
-              handleSpeed(1, false);
-            }}
-            onTouchEnd={(e) => {
-              handleSpeed(0);
-            }}
-            onMouseDown={(e) => {
-              if (isMobileOrTablet) {
-                return;
-              }
-              e.preventDefault();
-              e.stopPropagation();
-              handleSpeed(1, false);
-              // setIsBackward(false);
-            }}
-            onMouseUp={(e) => {
-              if (isMobileOrTablet) {
-                return;
-              }
-              e.preventDefault();
-              e.stopPropagation();
-              handleSpeed(0);
-            }}
-            className={arrowButtonClass}
-          >
-            {/* Backward */}
-            <svg
-              className={`${arrowSVGSize} text-gray-800`}
-              aria-hidden="true"
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              fill="none"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2"
-                d="M12 19V5m0 14-4-4m4 4 4-4"
-              />
-            </svg>
-          </button>
-        </div>
+        <CommandsProvider
+          value={{
+            wsRef: wsRef.current,
+            handleSpeed: handleSpeed,
+            handleTurn: handleTurn,
+          }}
+        >
+          <Controllers
+            isMobileOrTablet={isMobileOrTablet}
+            handleTurn={handleTurn}
+            handleSpeed={handleSpeed}
+          />
+        </CommandsProvider>
         <div className="flex gap-12 flex-col w-full">
           <label className="w-full flex flex-1 ">
             <input

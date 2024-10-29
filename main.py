@@ -111,18 +111,24 @@ async def handle_http_requests():
         await asyncio.sleep(0)
 
 
-async def handle_websocket_requests():
+async def handle_websocket_requests(context):
     while True:
         if websocket is not None:
             if (data := websocket.receive(fail_silently=True)) is not None:
                 params = data.split("#")
-                print(data)
+                if isDebug:
+                    print(data)
+                if params[0] == 'parent_control':
+                    context.parentControl = params[1] == 'true'
+                    if isDebug:
+                        print("Parent Control: ", context.parentControl)
+                    continue
                 driveWheelSpeed = float(params[0])
                 frontSteerSpeed = float(params[1])
+                
                 if driveWheelSpeed or driveWheelSpeed == 0:
                     if driveWheelSpeed >= -1 and driveWheelSpeed <= 1:
                         driveWheel.throttle = driveWheelSpeed
-
                 if frontSteerSpeed or frontSteerSpeed == 0:
                     frontSteer.throttle = frontSteerSpeed
                 websocket.send_message("Ack " + data, fail_silently=True)
@@ -168,10 +174,12 @@ class SharedContext:
     # https://learn.adafruit.com/cooperative-multitasking-in-circuitpython-with-asyncio/communicating-between-tasks
     def __init__(self):
         self.direction = 0
+        self.parentControl = False
 
 
-async def monitor_inputs(pins):
+async def monitor_inputs(pins, context):
     [reverse, speed1, speed2, accelerator] = pins
+    
     hasAccelerated = False
     while True:
         if isDebug:
@@ -189,13 +197,17 @@ async def monitor_inputs(pins):
             hasAccelerated = True
             revFactor = -1 if isReverse else 1
             acceleratorFactor = 0.7 if isSpeed1 else 1 if isSpeed2 else 0
+            if revFactor is -1:
+                acceleratorFactor = 1
             if isDebug:
                 print("Accelerator Factor: ", acceleratorFactor)
                 print("Reverse Factor: ", revFactor)
-            driveWheel.throttle = acceleratorFactor * revFactor
+                print("Parent Control: ", context.parentControl)
+            if context.parentControl != True:
+                driveWheel.throttle = acceleratorFactor * revFactor
             if websocket is not None:
                 websocket.send_message(
-                    "MOTOR#RUNNING" + str(acceleratorFactor * revFactor),
+                    "MOTOR#RUNNING/" + str(acceleratorFactor * revFactor),
                     fail_silently=True,
                 )
         elif hasAccelerated:
@@ -205,18 +217,21 @@ async def monitor_inputs(pins):
             driveWheel.throttle = 0
             if websocket is not None:
                 websocket.send_message("MOTOR#STOPPED", fail_silently=True)
-        await asyncio.sleep(0.05)
+        if isDebug:
+            await asyncio.sleep(1)
+        else:
+            await asyncio.sleep(0.05)
 
 
 async def main():
     context = SharedContext()
-    reverse = digitalio.DigitalInOut(board.D27)
+    reverse = digitalio.DigitalInOut(board.D25)
     reverse.direction = digitalio.Direction.INPUT
     reverse.pull = digitalio.Pull.DOWN
-    speed1 = digitalio.DigitalInOut(board.D26)
+    speed1 = digitalio.DigitalInOut(board.D27)
     speed1.direction = digitalio.Direction.INPUT
     speed1.pull = digitalio.Pull.DOWN
-    speed2 = digitalio.DigitalInOut(board.D25)
+    speed2 = digitalio.DigitalInOut(board.D26)
     speed2.direction = digitalio.Direction.INPUT
     speed2.pull = digitalio.Pull.DOWN
     accelerator = digitalio.DigitalInOut(board.D19)
@@ -225,10 +240,10 @@ async def main():
 
     await asyncio.gather(
         asyncio.create_task(handle_http_requests()),
-        asyncio.create_task(handle_websocket_requests()),
+        asyncio.create_task(handle_websocket_requests(context)),
         asyncio.create_task(send_websocket_messages()),
         # asyncio.create_task(catch_acceleration()),
-        asyncio.create_task(monitor_inputs([reverse, speed1, speed2, accelerator])),
+        asyncio.create_task(monitor_inputs([reverse, speed1, speed2, accelerator], context)),
     )
 
 
