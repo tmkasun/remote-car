@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import logo from "./logo.svg";
 import "./App.css";
 import Footer from "./Components/Footer";
@@ -6,7 +12,7 @@ import { Configs } from "./Components/Configs";
 import { Controllers } from "./Components/Controllers";
 import { CommandsProvider } from "./Components/CommandContext";
 
-const WSEndpoint = "192.168.4.1" || window.location.host;
+const WSEndpoint = "car.local" || window.location.host;
 const mobileAndTabletCheck = function () {
   let check = false;
   (function (a) {
@@ -32,12 +38,15 @@ function App() {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const isMobileOrTablet = useMemo(mobileAndTabletCheck, []);
+  useLayoutEffect(() => {
+    
+  }, []);
   const connectWS = () => {
     if (wsRef.current) {
       wsRef.current.close();
     }
     setIsConnecting(true);
-    let ws = new WebSocket("ws://" + WSEndpoint + "/connect-websocket");
+    let ws = new WebSocket("wss://" + WSEndpoint + "/connect-websocket");
     ws.onopen = () => {
       setWSMessage("Connected to WS Server");
       setIsConnected(true);

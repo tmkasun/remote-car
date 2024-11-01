@@ -10,15 +10,17 @@ import board
 import digitalio
 import microcontroller
 import gc
-import socketpool
 import wifi
 import pwmio
-import ipaddress
+import mdns
+import socketpool
+import ssl
 import json
 import time
 from adafruit_motor import motor
 import countio
-
+import gc
+from tls_utils import TLSServerSocketPool
 from adafruit_httpserver import Server, Request, MIMETypes, Websocket, GET, FileResponse
 
 isDebug = False
@@ -69,19 +71,30 @@ MIMETypes.configure(
     keep_for=[".css", ".js", ".png", ".jpg", ".jpeg"],
 )
 
+# Comment out the following lines to use the plain HTTP server without TLS
+# server = Server(pool, root_path="/www", debug=True)
+# server.start(str(wifi.radio.ipv4_address_ap))
+gc.collect()
+
 pool = socketpool.SocketPool(wifi.radio)
-server = Server(pool, root_path="/www", debug=True)
+mdns_server = mdns.Server(wifi.radio)
+mdns_server.hostname = "car"
+mdns_server.instance_name = "car computer"
+mdns_server.advertise_service(service_type="_http", protocol="_tcp", port=443)
+wifi.radio.hostname = "car.local"
 
-
-# led = digitalio.DigitalInOut(board.LED)
-# led.direction = digitalio.Direction.OUTPUT
-
-websocket: Websocket = None
-
+host = str(wifi.radio.ipv4_address_ap)
+ssl_context = ssl.create_default_context()
+ssl_context.load_verify_locations(cadata="")
+ssl_context.load_cert_chain(
+    "certificates/certificate-chain.pem", "certificates/key.pem"
+)
+tls_pool = TLSServerSocketPool(pool, ssl_context)
+https_server = Server(tls_pool, root_path="/www")
+https_server.start(port=443, host=host)
 # https://docs.circuitpython.org/projects/httpserver/en/latest/api.html#adafruit_httpserver.response.FileResponse
 
-
-@server.route("/client", GET)
+@https_server.route("/client", GET)
 def client(request: Request):
     # https://docs.circuitpython.org/projects/httpserver/en/latest/api.html#adafruit_httpserver.request.Request
     print(request.path)
@@ -89,27 +102,20 @@ def client(request: Request):
         request, filename="index.html", root_path="/www", content_type="text/html"
     )
 
+websocket: Websocket = None
 
-@server.route("/connect-websocket", GET)
+@https_server.route("/connect-websocket", GET)
 def connect_client(request: Request):
     global websocket  # pylint: disable=global-statement
-
     if websocket is not None:
         websocket.close()  # Close any existing connection
-
     websocket = Websocket(request)
-
     return websocket
-
-
-server.start(str(wifi.radio.ipv4_address_ap))
-
 
 async def handle_http_requests():
     while True:
-        server.poll()
+        https_server.poll()
         await asyncio.sleep(0)
-
 
 async def handle_websocket_requests(context):
     while True:
@@ -132,9 +138,7 @@ async def handle_websocket_requests(context):
                 if frontSteerSpeed or frontSteerSpeed == 0:
                     frontSteer.throttle = frontSteerSpeed
                 websocket.send_message("Ack " + data, fail_silently=True)
-
         await asyncio.sleep(0)
-
 
 async def send_websocket_messages():
     while True:
@@ -168,7 +172,6 @@ async def catch_acceleration():
                 if websocket is not None:
                     websocket.send_message("MOTOR#RUNNING", fail_silently=True)
             await asyncio.sleep(0.1)
-
 
 class SharedContext:
     # https://learn.adafruit.com/cooperative-multitasking-in-circuitpython-with-asyncio/communicating-between-tasks

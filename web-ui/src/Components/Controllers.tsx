@@ -1,15 +1,19 @@
 import { useRef } from "react";
 import { ParentalControl } from "./ParentalControl";
+import { FullScreenWidget } from "./FullScreenWidget";
 
 export const MAX_TURNING_TIME = 1000;
 
 const commonStyle =
-  "w-32 h-24 border dark:border-blue-500 border-blue-700 rounded-xl flex items-center justify-center";
+  "border dark:border-blue-500 border-blue-700 rounded-xl flex items-center justify-center";
 export const arrowButtonClass =
   "text-blue-700 w-full h-full hover:text-white flex items-center justify-center  hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:text-blue-500 dark:hover:text-white dark:hover:bg-blue-500 dark:focus:ring-blue-800";
 
 export const arrowSVGSize = "w-16 h-16";
 
+export const isFullScreen = () => {
+  return Boolean(window.document.fullscreenElement);
+};
 export const Controllers = ({
   handleSpeed,
   isMobileOrTablet,
@@ -74,10 +78,8 @@ export const Controllers = ({
           </svg>
         </button>
       </div>
-      <div
-      //   className={commonStyle}
-      >
-        {/* Reserved */}
+      <div className={commonStyle}>
+        <FullScreenWidget />
       </div>
       <div className={commonStyle}>
         <button

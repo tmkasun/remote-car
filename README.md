@@ -29,3 +29,9 @@ to install the firmware
 - [adafruit_motor](https://learn.adafruit.com/adafruit-tb6612-h-bridge-dc-stepper-motor-driver-breakout/python-circuitpython#circuitpython-and-python-usage-3070892) usage
 - [Adafruit motor example code](https://github.dev/adafruit/Adafruit_CircuitPython_Motor/tree/main)
 - [l298n wiring with ESP32 board](https://microcontrollerslab.com/l298n-dc-motor-driver-module-esp32-tutorial/)
+
+# To port a new firmware
+
+1. cd ~/.espressif/python_env/idf5.3_py3.10_env/bin/
+2. ./esptool.py --port /dev/ttyUSB0 write_flash -z 0x0 ~/Downloads/adafruit-circuitpython-doit_esp32_devkit_v1-en_US-9.2.0.bin
+3. ./esptool.py  --port /dev/ttyUSB0 erase_flash
