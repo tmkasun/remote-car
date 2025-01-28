@@ -8,23 +8,51 @@
 import asyncio
 import board
 import digitalio
-import microcontroller
 import gc
 import wifi
 import pwmio
 import mdns
 import socketpool
-import ssl
 import json
 import time
 from adafruit_motor import motor
 import countio
 import gc
-from tls_utils import TLSServerSocketPool
 from adafruit_httpserver import Server, Request, MIMETypes, Websocket, GET, FileResponse
+import board
+from car_audio import honk
 
 isDebug = False
 
+# GAIN = digitalio.DigitalInOut(board.D14)
+# GAIN.direction = digitalio.Direction.OUTPUT
+# LRC = board.D35
+# BCLK = board.D32
+# DIN = board.D33
+
+
+# audio = audiobusio.I2SOut(BCLK, LRC, DIN)
+# car_horn_file = open("car-horn.mp3", "rb")
+# car_horn = MP3Decoder(car_horn_file)
+# audiomixer1 = audiomixer.Mixer(voice_count=1, sample_rate=24000, channel_count=1)
+# audio.play(audiomixer1)
+# GAIN.value = True
+# # car_horn = audiocore.WaveFile(open("car-horn2.wav", "rb"))
+# while True:
+#     # audio.play(decoder)
+#     # while audio.playing:
+#     #     pass
+#     if GAIN.value == True:
+#         print("GAIN is HIGH")
+#         GAIN.value = False
+#     audiomixer1.voice[0].level = 0.1
+#     audiomixer1.voice[0].play(car_horn)
+#     # audio.play(car_horn)
+#     print("Playing")
+#     while audiomixer1.voice[0].playing:
+#         pass
+#     print("Stopped")
+#     time.sleep(2)
 # async def main():
 #     pass
 
@@ -80,19 +108,23 @@ pool = socketpool.SocketPool(wifi.radio)
 mdns_server = mdns.Server(wifi.radio)
 mdns_server.hostname = "car"
 mdns_server.instance_name = "car computer"
-mdns_server.advertise_service(service_type="_http", protocol="_tcp", port=443)
+mdns_server.advertise_service(service_type="_http", protocol="_tcp", port=80)
 wifi.radio.hostname = "car.local"
 
 host = str(wifi.radio.ipv4_address_ap)
-ssl_context = ssl.create_default_context()
-ssl_context.load_verify_locations(cadata="")
-ssl_context.load_cert_chain(
-    "certificates/certificate-chain.pem", "certificates/key.pem"
-)
-tls_pool = TLSServerSocketPool(pool, ssl_context)
-https_server = Server(tls_pool, root_path="/www")
-https_server.start(port=443, host=host)
+# ssl_context = ssl.create_default_context()
+# ssl_context.load_verify_locations(cadata="")
+# ssl_context.load_cert_chain(
+#     "certificates/certificate-chain.pem", "certificates/key.pem"
+# )
+# tls_pool = TLSServerSocketPool(pool, ssl_context)
+
+https_server = Server(pool, root_path="/www", debug=True)
+https_server.start(str(wifi.radio.ipv4_address_ap), port=80)
+# https_server = Server(tls_pool, root_path="/www")
+# https_server.start(port=443, host=host)
 # https://docs.circuitpython.org/projects/httpserver/en/latest/api.html#adafruit_httpserver.response.FileResponse
+
 
 @https_server.route("/client", GET)
 def client(request: Request):
@@ -102,7 +134,9 @@ def client(request: Request):
         request, filename="index.html", root_path="/www", content_type="text/html"
     )
 
+
 websocket: Websocket = None
+
 
 @https_server.route("/connect-websocket", GET)
 def connect_client(request: Request):
@@ -112,10 +146,12 @@ def connect_client(request: Request):
     websocket = Websocket(request)
     return websocket
 
+
 async def handle_http_requests():
     while True:
         https_server.poll()
         await asyncio.sleep(0)
+
 
 async def handle_websocket_requests(context):
     while True:
@@ -124,14 +160,18 @@ async def handle_websocket_requests(context):
                 params = data.split("#")
                 if isDebug:
                     print(data)
-                if params[0] == 'parent_control':
-                    context.parentControl = params[1] == 'true'
+                if params[0] == "parent_control":
+                    context.parentControl = params[1] == "true"
                     if isDebug:
                         print("Parent Control: ", context.parentControl)
                     continue
+                if params[0] == "honk":
+                    gc.collect()
+                    honk()  # TODO: Check how UI sends the honk message and optimize this call
+                    continue
                 driveWheelSpeed = float(params[0])
                 frontSteerSpeed = float(params[1])
-                
+
                 if driveWheelSpeed or driveWheelSpeed == 0:
                     if driveWheelSpeed >= -1 and driveWheelSpeed <= 1:
                         driveWheel.throttle = driveWheelSpeed
@@ -139,6 +179,7 @@ async def handle_websocket_requests(context):
                     frontSteer.throttle = frontSteerSpeed
                 websocket.send_message("Ack " + data, fail_silently=True)
         await asyncio.sleep(0)
+
 
 async def send_websocket_messages():
     while True:
@@ -148,7 +189,18 @@ async def send_websocket_messages():
             gc.collect()
             start_mem = gc.mem_free()
             print("Point 1 Available memory: {} bytes".format(start_mem))
-            websocket.send_message("Keep-Alive", fail_silently=True)
+            memory_details = (
+                "Memory: "
+                + str(gc.mem_free())
+                + " bytes"
+                + " / "
+                + str(gc.mem_alloc())
+                + " bytes"
+            )
+            websocket.send_message(
+                "Keep-Alive: {}".format(memory_details),
+                fail_silently=True,
+            )
         await asyncio.sleep(15)
 
 
@@ -173,6 +225,7 @@ async def catch_acceleration():
                     websocket.send_message("MOTOR#RUNNING", fail_silently=True)
             await asyncio.sleep(0.1)
 
+
 class SharedContext:
     # https://learn.adafruit.com/cooperative-multitasking-in-circuitpython-with-asyncio/communicating-between-tasks
     def __init__(self):
@@ -182,7 +235,7 @@ class SharedContext:
 
 async def monitor_inputs(pins, context):
     [reverse, speed1, speed2, accelerator] = pins
-    
+
     hasAccelerated = False
     while True:
         if isDebug:
@@ -246,7 +299,9 @@ async def main():
         asyncio.create_task(handle_websocket_requests(context)),
         asyncio.create_task(send_websocket_messages()),
         # asyncio.create_task(catch_acceleration()),
-        asyncio.create_task(monitor_inputs([reverse, speed1, speed2, accelerator], context)),
+        asyncio.create_task(
+            monitor_inputs([reverse, speed1, speed2, accelerator], context)
+        ),
     )
 
 

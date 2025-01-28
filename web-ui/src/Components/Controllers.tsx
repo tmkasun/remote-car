@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { ParentalControl } from "./ParentalControl";
 import { FullScreenWidget } from "./FullScreenWidget";
+import { useCommands } from "./CommandContext";
 
 export const MAX_TURNING_TIME = 1000;
 
@@ -24,6 +25,7 @@ export const Controllers = ({
   isMobileOrTablet: boolean;
 }) => {
   const turningTimeOut = useRef<NodeJS.Timeout | null>(null);
+  const { sendCommand } = useCommands();
 
   return (
     <div className="grid grid-cols-3 gap-1 px-0 py-0  ">
@@ -204,10 +206,17 @@ export const Controllers = ({
           </svg>
         </button>
       </div>
-      <div
-      //   className={commonStyle}
-      >
-        {/* Reserved */}
+      <div className={commonStyle}>
+        <button
+          type="button"
+          onClick={() => {
+            sendCommand("honk", true);
+            handleSpeed(0);
+            handleTurn(0);
+          }}
+        >
+          Honk
+        </button>
       </div>
       <div className={commonStyle}>
         <button

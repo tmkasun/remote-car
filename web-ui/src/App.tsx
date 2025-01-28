@@ -46,7 +46,7 @@ function App() {
       wsRef.current.close();
     }
     setIsConnecting(true);
-    let ws = new WebSocket("wss://" + WSEndpoint + "/connect-websocket");
+    let ws = new WebSocket("ws://" + WSEndpoint + "/connect-websocket");
     ws.onopen = () => {
       setWSMessage("Connected to WS Server");
       setIsConnected(true);
